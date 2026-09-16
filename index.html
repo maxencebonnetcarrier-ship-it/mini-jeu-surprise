@@ -117,7 +117,7 @@
 
 <script>
   const WORD = "IMMARCESCIBLE";
-  const MAX_ERRORS = 8;
+  const MAX_ERRORS = 3;
   let errors = 0;
   const guessed = new Set();
 
@@ -161,8 +161,8 @@
     renderHearts();
     if(checkWin()){ win(); }
     else if(errors >= MAX_ERRORS){
-      statusEl.textContent = "Plus de cœurs ! Réessaie 🥺";
-      setTimeout(reset, 1500);
+      statusEl.textContent = "trooop nuul ! 😘";
+      setTimeout(reset, 1800);
     }
   }
 
