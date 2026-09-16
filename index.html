@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Un jeu pour toi ♥</title>
+<style>
+  :root{
+    --bg1:#1a0b2e; --bg2:#3d1a5b; --accent:#ff6b9d; --accent2:#ffd1e3;
+    --gold:#ffd76b; --ink:#fff;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%;}
+  body{
+    font-family:"Segoe UI", system-ui, sans-serif;
+    background:linear-gradient(135deg,var(--bg1),var(--bg2));
+    color:var(--ink);
+    min-height:100vh;
+    display:flex; align-items:center; justify-content:center;
+    padding:20px; overflow-x:hidden;
+  }
+  .card{
+    width:100%; max-width:640px;
+    background:rgba(255,255,255,.06);
+    border:1px solid rgba(255,255,255,.12);
+    border-radius:24px;
+    padding:32px 28px;
+    box-shadow:0 20px 60px rgba(0,0,0,.4);
+    backdrop-filter:blur(8px);
+    text-align:center;
+  }
+  h1{font-size:1.5rem; font-weight:600; margin-bottom:6px;}
+  .sub{color:var(--accent2); font-size:.95rem; margin-bottom:24px;}
+  .clue{
+    background:rgba(255,215,107,.12);
+    border:1px dashed var(--gold);
+    border-radius:14px;
+    padding:14px 16px; margin-bottom:24px;
+    font-size:1rem; color:var(--gold);
+  }
+  .clue b{color:#fff;}
+  .word{
+    display:flex; flex-wrap:wrap; gap:8px; justify-content:center;
+    margin-bottom:26px;
+  }
+  .letter{
+    width:34px; height:44px;
+    border-bottom:3px solid var(--accent);
+    display:flex; align-items:flex-end; justify-content:center;
+    font-size:1.6rem; font-weight:700;
+    padding-bottom:2px;
+  }
+  .letter.revealed{border-bottom-color:var(--gold);}
+  .keyboard{display:flex; flex-wrap:wrap; gap:7px; justify-content:center; margin-bottom:20px;}
+  .key{
+    width:38px; height:44px; border:none; border-radius:10px;
+    background:rgba(255,255,255,.14); color:#fff;
+    font-size:1rem; font-weight:600; cursor:pointer;
+    transition:transform .1s, background .2s;
+  }
+  .key:hover:not(:disabled){background:var(--accent); transform:translateY(-2px);}
+  .key:disabled{opacity:.3; cursor:default;}
+  .key.good{background:#4caf80;}
+  .key.bad{background:#7a2b3e;}
+  .hearts{font-size:1.4rem; letter-spacing:4px; margin-bottom:14px; min-height:1.6rem;}
+  .status{min-height:1.3rem; color:var(--accent2); font-size:.95rem; margin-bottom:6px;}
+  /* victory overlay */
+  .win{
+    position:fixed; inset:0; background:linear-gradient(135deg,var(--bg1),var(--bg2));
+    display:none; align-items:center; justify-content:center; flex-direction:column;
+    padding:30px; text-align:center; z-index:10; animation:fade .8s ease;
+  }
+  .win.show{display:flex;}
+  .win .big{
+    font-size:2.4rem; font-weight:800; letter-spacing:2px;
+    background:linear-gradient(90deg,var(--accent),var(--gold));
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+    margin-bottom:10px;
+  }
+  .win .love{font-size:1.25rem; margin-bottom:20px; line-height:1.5;}
+  .bigheart{font-size:4rem; animation:beat 1s infinite;}
+  .date{
+    margin-top:30px; font-size:1.15rem; line-height:1.6;
+    background:rgba(255,255,255,.08); border-radius:16px; padding:22px 20px;
+    max-width:460px; opacity:0; animation:rise 1s ease forwards; animation-delay:1.2s;
+  }
+  .date .num{font-size:2rem; font-weight:800; color:var(--gold); display:block; margin-bottom:6px;}
+  @keyframes beat{0%,100%{transform:scale(1);}50%{transform:scale(1.18);}}
+  @keyframes fade{from{opacity:0;}to{opacity:1;}}
+  @keyframes rise{from{opacity:0; transform:translateY(20px);}to{opacity:1; transform:translateY(0);}}
+  .confetti{position:fixed; top:-10px; font-size:1.2rem; animation:fall linear forwards; z-index:11;}
+  @keyframes fall{to{transform:translateY(105vh) rotate(360deg); opacity:0;}}
+</style>
+</head>
+<body>
+
+  <div class="card" id="game">
+    <h1>Un petit jeu pour toi ♥</h1>
+    <div class="sub">Trouve le mot mystère...</div>
+    <div class="clue">Indice : ce mot <b>fait 21 points au Scrabble</b> 🎲</div>
+    <div class="word" id="word"></div>
+    <div class="hearts" id="hearts"></div>
+    <div class="status" id="status">À toi de jouer !</div>
+    <div class="keyboard" id="keyboard"></div>
+  </div>
+
+  <div class="win" id="win">
+    <div class="bigheart">💖</div>
+    <div class="big" id="winword">IMMARCESCIBLE</div>
+    <div class="love">comme notre amour <span style="font-size:1.4rem">❤️</span></div>
+    <div class="date">
+      <span class="num">16 · 03</span>
+      Une date qui compte...<br>
+      va voir ce qu'il s'est passé ce jour-là 😉
+    </div>
+  </div>
+
+<script>
+  const WORD = "IMMARCESCIBLE";
+  const MAX_ERRORS = 8;
+  let errors = 0;
+  const guessed = new Set();
+
+  const wordEl = document.getElementById('word');
+  const kbEl = document.getElementById('keyboard');
+  const statusEl = document.getElementById('status');
+  const heartsEl = document.getElementById('hearts');
+
+  function renderHearts(){
+    const left = MAX_ERRORS - errors;
+    heartsEl.textContent = "❤️".repeat(left) + "🤍".repeat(errors);
+  }
+
+  function renderWord(){
+    wordEl.innerHTML = '';
+    for(const ch of WORD){
+      const d = document.createElement('div');
+      d.className = 'letter';
+      if(guessed.has(ch)){ d.textContent = ch; d.classList.add('revealed'); }
+      wordEl.appendChild(d);
+    }
+  }
+
+  function checkWin(){
+    return [...WORD].every(ch => guessed.has(ch));
+  }
+
+  function guess(letter, btn){
+    if(guessed.has(letter)) return;
+    guessed.add(letter);
+    btn.disabled = true;
+    if(WORD.includes(letter)){
+      btn.classList.add('good');
+      statusEl.textContent = "Bravo ! Continue 💕";
+    } else {
+      btn.classList.add('bad');
+      errors++;
+      statusEl.textContent = "Raté... mais tu vas y arriver !";
+    }
+    renderWord();
+    renderHearts();
+    if(checkWin()){ win(); }
+    else if(errors >= MAX_ERRORS){
+      statusEl.textContent = "Plus de cœurs ! Réessaie 🥺";
+      setTimeout(reset, 1500);
+    }
+  }
+
+  function reset(){
+    errors = 0; guessed.clear();
+    document.querySelectorAll('.key').forEach(k=>{k.disabled=false; k.classList.remove('good','bad');});
+    statusEl.textContent = "On reprend depuis le début 💫";
+    renderWord(); renderHearts();
+  }
+
+  function win(){
+    document.getElementById('game').style.display = 'none';
+    document.getElementById('win').classList.add('show');
+    burstConfetti();
+  }
+
+  function burstConfetti(){
+    const emojis = ['💖','✨','💕','🎉','❤️','💛'];
+    for(let i=0;i<60;i++){
+      const c = document.createElement('div');
+      c.className = 'confetti';
+      c.textContent = emojis[Math.floor(Math.random()*emojis.length)];
+      c.style.left = Math.random()*100+'vw';
+      c.style.animationDuration = (2+Math.random()*3)+'s';
+      c.style.animationDelay = (Math.random()*1.5)+'s';
+      document.body.appendChild(c);
+      setTimeout(()=>c.remove(), 6000);
+    }
+  }
+
+  // build keyboard
+  const alphabet = "AZERTYUIOPQSDFGHJKLMWXCVBN";
+  for(const ch of alphabet){
+    const b = document.createElement('button');
+    b.className = 'key'; b.textContent = ch;
+    b.onclick = () => guess(ch, b);
+    kbEl.appendChild(b);
+  }
+
+  // physical keyboard support
+  document.addEventListener('keydown', e=>{
+    const ch = e.key.toUpperCase();
+    if(alphabet.includes(ch)){
+      const btn = [...kbEl.children].find(k=>k.textContent===ch);
+      if(btn && !btn.disabled) guess(ch, btn);
+    }
+  });
+
+  renderWord();
+  renderHearts();
+</script>
+</body>
+</html>
